@@ -13,6 +13,6 @@ If prompted, it is recommended to update any pre-installed packages.
 
 ## Process your data
 Make sure you properly add raw data and fieldsheet to your data folder.
-The main script to process Picarro data from raw field data to automatically processed fluxes is "raw2flux_LinearModel.R"
+The main script to process Picarro data from raw field data to automatically processed fluxes is "raw2flux.R"
 
 The main script to compare automatic processing versus expert manual selection of the data is "expert_vs_automatic_processing.R"
