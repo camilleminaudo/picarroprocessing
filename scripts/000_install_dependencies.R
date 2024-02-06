@@ -9,7 +9,7 @@ if (!require("pacman", quietly = TRUE))
 
 pacman::p_load("data.table", "dplyr",  "egg", "ggnewscale", "ggplot2", "graphics", "grDevices", "grid", "gridExtra",
                "lubridate", "minpack.lm", "msm", "pbapply", "plyr", "purrr", "readxl", "remotes","rjson", "rlist", "SimDesign",
-               "stats", "tibble", "tidyr", "utils")
+               "stats", "tibble", "tidyr", "tools","utils")
 
 remotes::install_github("Qepanna/GoFluxYourself")
 
