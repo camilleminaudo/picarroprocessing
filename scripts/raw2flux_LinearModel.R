@@ -2,12 +2,12 @@
 # ---
 # Authors: Camille Minaudo
 # Project: "RESTORE4Cs"
-# date: "Oct 2023"
-# https://github.com/camilleminaudo/restore4cs-scripts
+# date: "Janv 2024"
+# https://github.com/camilleminaudo/picarroprocessing
 # ---
 
 # --- Description of this script
-# This script
+# This script transforms raw data of the Picarro gas scouter analyser into fluxes
 
 
 rm(list = ls()) # clear workspace
@@ -26,14 +26,17 @@ library(GoFluxYourself)
 require(dplyr)
 require(purrr)
 require(msm)
+require(pbapply)
 
 
-repo_root <- dirname(rstudioapi::getSourceEditorContext()$path)
+repo_root <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 
-source(paste0(repo_root,"/get_unix_times.R"))
-source(paste0(repo_root,"/read_GHG_fieldsheets.R"))
-source(paste0(repo_root,"/flux.term.R"))
-source(paste0(repo_root,"/LM.flux.R"))
+
+source(paste0(repo_root,"/scripts/get_unix_times.R"))
+source(paste0(repo_root,"/scripts/read_GHG_fieldsheets.R"))
+source(paste0(repo_root,"/scripts/flux.term.R"))
+source(paste0(repo_root,"/scripts/LM.flux.R"))
+source(paste0(repo_root,"/scripts/import2RData.R"))
 
 
 
@@ -49,22 +52,129 @@ results_path <- paste0(repo_root,"/results/processed")
 
 doPlot <- F
 
-# ---- List GHG chamber fieldsheets in Dropbox and read them ---
+# ---- List GHG chamber fieldsheets in data folder and read them ---
 # list filenames
-myfieldsheets_list <- list.files(fieldsheetpath, pattern = "Fieldsheet-GHG.xlsx", all.files = T, full.names = T, recursive = T)
+myfieldsheets_list <- list.files(fieldsheetpath, pattern = "-Fieldsheet-GHG.xlsx", all.files = T, full.names = T, recursive = T)
 # Read all fieldsheets and put them in a single dataframe
 fieldsheet <- read_GHG_fieldsheets(myfieldsheets_list)
 
 
 
-# ---- List GHG chamber corrected fieldsheets in Dropbox ---
-# list filenames
-myfieldsheets_corrected_list <- list.files(corrfieldsheetpath, pattern = "Fieldsheet-GHG_corrected.csv", all.files = T, full.names = T, recursive = T)
-subsites_corrected_fs <- gsub(pattern = "-Fieldsheet-GHG_corrected.csv",replacement = "",x = basename(myfieldsheets_corrected_list))
+
+# ---- Import and store measurements to RData ----
+data_folders <- list.dirs(rawdatapath, full.names = T, recursive = F)
+r <- grep(pattern = "RData",x=data_folders)
+if(length(r)>0){data_folders <- data_folders[-r]}
 
 
-# ---- function to save a list of plots into pdf file ----
+message("Here is the list of data folders in here:")
+print(data_folders)
 
+
+for (data_folder in data_folders){
+  setwd(data_folder)
+  subsite = basename(data_folder)
+  message(paste0("processing folder ",basename(data_folder)))
+  import2RData(path = data_folder, instrument = "G2508",
+               date.format = "ymd", timezone = 'UTC')
+
+  # load all these R.Data into a single dataframe
+  file_list <- list.files(path = paste(data_folder,"/RData",sep=""), full.names = T)
+  isF <- T
+  for(i in seq_along(file_list)){
+    load(file_list[i])
+    if(isF){
+      isF <- F
+      mydata_imp <- data.raw
+    } else {
+      mydata_imp <- rbind(mydata_imp, data.raw)
+    }
+    rm(data.raw)
+  }
+
+  # get read of possible duplicated data
+  is_duplicate <- duplicated(mydata_imp$POSIX.time)
+  mydata <- mydata_imp[!is_duplicate,]
+
+  # creating a folder where to put this data
+  dir.create(file.path(results_path, subsite))
+  setwd(file.path(results_path, subsite))
+
+  # save this dataframe as a new RData file
+  save(mydata, file = paste0("data_",subsite,".RData"))
+}
+
+
+
+# ---- Correct fieldsheet  times based on "incubation map" ----
+
+read_map_incubations <- function(path2folder){
+
+  my_maps_filenames <- list.files(data_folder, pattern = ".csv", all.files = T, full.names = T, recursive = F)
+  isF <- T
+  for(my_maps_filename in my_maps_filenames){
+
+    map_incubations_temp <- read.csv(file = my_maps_filename,
+                                     header = T)
+    map_incubations_temp <- map_incubations_temp[map_incubations_temp$Species ==  "CH4",]
+
+    if(isF){
+      isF <- F
+      map_incubations <- map_incubations_temp
+    } else {
+      map_incubations <- rbind(map_incubations, map_incubations_temp)
+    }
+  }
+
+  map_incubations <- data.frame(subsite = basename(path2folder),
+                                plot = map_incubations$Comment,
+                                time_code = map_incubations$Time.Code,
+                                start = map_incubations$start_fit,
+                                stop = map_incubations$end_fit)
+
+  return(map_incubations)
+}
+
+
+# read all the csv files in data_folder, and group into a single one
+map_incubations <- read_map_incubations(path2folder = rawdatapath)
+
+
+# check the closest incubation in map_incubations for each row in fieldsheet.
+# if more than 3 minutes apart, we consider the row in map_incubations out of sampling
+corresponding_row <- NA*fieldsheet$plot_id
+
+for (i in seq_along(fieldsheet$plot_id)){
+  ind <- which.min(abs(fieldsheet$unix_start[i] - map_incubations$start))
+  if(abs(fieldsheet$unix_start[i] - map_incubations$start[ind])<3*60){corresponding_row[i] <- ind}
+}
+corresponding_row <- corresponding_row[!is.na(corresponding_row)]
+map_incubations <- map_incubations[corresponding_row, ]
+
+if(dim(map_incubations)[1] != dim(fieldsheet)[1]){
+  fieldsheet <- fieldsheet[seq_along(corresponding_row),]
+}
+
+fieldsheet$start_time <- format(as.POSIXct(fieldsheet$start_time, tz = 'utc', format = "%T"), "%H:%M:%S")
+fieldsheet$end_time <- format(as.POSIXct(fieldsheet$end_time, tz = 'utc', format = "%T"), "%H:%M:%S")
+
+fieldsheet$unix_start_corrected <- map_incubations$start
+fieldsheet$unix_stop_corrected <- map_incubations$stop
+
+fieldsheet$timestamp_start <- as.POSIXct(fieldsheet$unix_start_corrected, tz = "UTC", origin = "1970-01-01")
+fieldsheet$timestamp_stop <- as.POSIXct(fieldsheet$unix_stop_corrected, tz = "UTC", origin = "1970-01-01")
+
+fieldsheet$start_time_corrected <- strftime(fieldsheet$timestamp_start, format="%H:%M:%S", tz = 'utc')
+fieldsheet$end_time_corrected <- strftime(fieldsheet$timestamp_stop, format="%H:%M:%S", tz = 'utc')
+
+setwd(paste0(results_path,"/corrected_fieldsheets"))
+f_name <- paste0(subsite,"-Fieldsheet-GHG_corrected.csv")
+write.csv(file = f_name, x = fieldsheet, row.names = F)
+
+
+# ---- Process incubations timeseries and compute fluxes ----
+
+# Function to save a list of plots into pdf file
 gg_save_pdf = function(list, filename) {
   pdf(filename)
   for (p in list) {
@@ -81,31 +191,11 @@ for (subsite in subsites){
   message("Now processing ",subsite)
 
   corresp_fs <- fieldsheet[fieldsheet$subsite == subsite,]
-  gs <- first(corresp_fs$gas_analyzer)
-
-  # check if there is a corresponding corrected fielsheet for this subsite
-  existsCorr_fs <- which(subsites_corrected_fs == subsite)
-  if (length(existsCorr_fs) > 0){
-    message("using exact incubation start and stop times")
-    fs_corr <- read.csv(file = myfieldsheets_corrected_list[existsCorr_fs])
-    corresp_fs$unix_start <- fs_corr$unix_start_corrected[match(corresp_fs$start_time, fs_corr$start_time)]
-    corresp_fs$unix_stop <- fs_corr$unix_stop_corrected[match(corresp_fs$start_time, fs_corr$start_time)]
-    corresp_fs <- corresp_fs[!is.na(corresp_fs$unix_start),]
-  }
-
-  if(gs == "LI-COR"){
-    gs_folder <- "RAW Data Licor-7810"
-  } else if (gs == "Los Gatos"){
-    gs_folder <- "RAW Data Los Gatos"
-  } else if (gs == "Picarro"){
-    gs_folder <- "RAW Data Picarro"
-  } else{
-    warning("------> gas analyser not properly detected!")
-  }
-
+  corresp_fs$unix_start <- corresp_fs$unix_start_corrected
+  corresp_fs$unix_stop <- corresp_fs$unix_stop_corrected
+  corresp_fs <- corresp_fs[!is.na(corresp_fs$unix_start),]
 
   # read corresponding temperature logger file and keep initial temperature
-
   # --- Read corresponding Loggers data ----
   SN_logger_float <- first(corresp_fs$logger_floating_chamber)
   SN_logger_tube <- first(corresp_fs$logger_transparent_chamber)
@@ -169,7 +259,7 @@ for (subsite in subsites){
   }
 
 
-  path2data <- paste0(rawdatapath,"/",gs_folder,"/RData/",subsite)
+  path2data <- paste0(results_path,"/",subsite)
   if(dir.exists(path2data)){
     setwd(path2data)
     load(file = paste0("data_",subsite,".RData"))
@@ -257,10 +347,16 @@ for (subsite in subsites){
       gg_save_pdf(list = plt_list, filename = paste0(subsite,".pdf"))
     }
   }
+
+  setwd(path2data)
+  flux_table_incub_this_subsite <- flux_table_incub_all[flux_table_incub_all$subsite == subsite,]
+  myfilename <- paste("fluxes",subsite,min(flux_table_incub_this_subsite$date), sep = "_")
+  write.csv(x = flux_table_incub_this_subsite, file = paste0(myfilename,".csv"), row.names = F)
+
 }
 
 setwd(results_path)
-myfilename <- paste("flux_all_incubations_linear_model",min(flux_table_incub_all$date),max(flux_table_incub_all$date), sep = "_")
+myfilename <- paste("fluxes_all",subsite,min(flux_table_incub_all$date),max(flux_table_incub_all$date), sep = "_")
 write.csv(x = flux_table_incub_all, file = paste0(myfilename,".csv"), row.names = F)
 
 
@@ -276,7 +372,9 @@ ggplot(flux_table_incub_all, aes(LM.r2_ch4, fill = strata))+geom_density(alpha=0
 
 ggplot(flux_table_incub_all[flux_table_incub_all$LM.r2_co2>0.5,], aes(subsite, LM.flux_co2, colour = transparent_dark))+
   geom_hline(yintercept = 0, alpha = 0.2)+
-  geom_boxplot()+facet_grid(strata~.)+
+  geom_boxplot()+
+  geom_jitter(width = 0.1)+
+  facet_grid(strata~.)+
   theme_article()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ylab("CO2 flux [µmol/m2/s]")
 
