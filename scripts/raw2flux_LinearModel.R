@@ -27,21 +27,24 @@ require(dplyr)
 require(purrr)
 require(msm)
 
-source(paste0(dirname(rstudioapi::getSourceEditorContext()$path),"/get_unix_times.R"))
-source(paste0(dirname(rstudioapi::getSourceEditorContext()$path),"/read_GHG_fieldsheets.R"))
-source(paste0(dirname(rstudioapi::getSourceEditorContext()$path),"/flux.term.R"))
-source(paste0(dirname(rstudioapi::getSourceEditorContext()$path),"/LM.flux.R"))
+
+repo_root <- dirname(rstudioapi::getSourceEditorContext()$path)
+
+source(paste0(repo_root,"/get_unix_times.R"))
+source(paste0(repo_root,"/read_GHG_fieldsheets.R"))
+source(paste0(repo_root,"/flux.term.R"))
+source(paste0(repo_root,"/LM.flux.R"))
 
 
 
 # ---- Directories ----
-dropbox_root <- "C:/Users/Camille Minaudo/Dropbox/RESTORE4Cs - Fieldwork/Data"
-datapath <- paste0(dropbox_root,"/GHG/RAW data")
-fieldsheetpath <- paste0(dropbox_root,"/GHG/Fieldsheets")
-corrfieldsheetpath <- paste0(dropbox_root,"/GHG/Processed data/corrected_fieldsheets")
-loggerspath <- paste0(datapath,"/RAW Data Logger")
-plots_path <- paste0(dropbox_root,"/GHG/Processed data/plots_all_incubations/")
-results_path <- paste0(dropbox_root,"/GHG/Processed data/computed_flux/")
+datapath <- paste0(repo_root,"/data")
+rawdatapath <- paste0(datapath,"/raw_data/RAW Data Picarro")
+fieldsheetpath <- paste0(datapath,"/fieldsheets")
+# corrfieldsheetpath <- paste0(datapath,"/GHG/Processed data/corrected_fieldsheets")
+loggerspath <- paste0(datapath,"/raw_data/RAW Data Logger")
+plots_path <- paste0(repo_root,"/results/plots")
+results_path <- paste0(repo_root,"/results/processed")
 
 
 doPlot <- F
@@ -166,7 +169,7 @@ for (subsite in subsites){
   }
 
 
-  path2data <- paste0(datapath,"/",gs_folder,"/RData/",subsite)
+  path2data <- paste0(rawdatapath,"/",gs_folder,"/RData/",subsite)
   if(dir.exists(path2data)){
     setwd(path2data)
     load(file = paste0("data_",subsite,".RData"))
