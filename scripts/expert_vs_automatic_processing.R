@@ -175,6 +175,8 @@ for (subsite in subsites){
 
     if(doPlot){plt_list <- vector('list', length(corresp_fs$plot_id))}
 
+
+
     auxfile <- NULL
 
     for (incub in seq_along(corresp_fs$plot_id)){
@@ -460,9 +462,6 @@ for (subsite in subsites){
       theme_article()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+scale_colour_viridis_d(begin = 0.1, end = 0.9, option = "F")
 
 
-
-
-
     # saving fluxes estimates
     sv_co2 <- rbind(CO2_flux_res_auto[,c('UniqueID','best.flux','flux_method')], CO2_flux_res_manID[,c('UniqueID','best.flux','flux_method')])
     sv_co2$variable <- "CO2"
@@ -472,9 +471,6 @@ for (subsite in subsites){
 
     setwd(results_path)
     write.csv(x = flux_co2_ch4, file = paste0(subsite,"_co2_ch4_fluxes.csv"), row.names = F, col.names = T)
-
-
-
 
 
   } # closing if(dir.exists(path2data)){
@@ -518,16 +514,6 @@ plt_CH4diff <- ggplot(table_results, aes(lightCondition, CH4_diffusive_flux, fil
 #   scale_fill_viridis_d(begin = 0.2, end = 0.9)
 
 ggarrange(plt_CO2, plt_CH4diff, ncol = 1)
-
-
-
-
-
-
-
-
-
-
 
 
 
