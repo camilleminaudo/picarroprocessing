@@ -99,7 +99,10 @@
 #'
 #'
 
-source("C:/Projects/myGit/restore4cs-scripts/scripts/G2508_import.R")
+#This works just in Camille computer
+#source("C:/Projects/myGit/restore4cs-scripts/scripts/G2508_import.R")
+#I added the file to this repository
+source("Extra_scripts/G2508_import.R")
 
 
 import2RData <- function(path, instrument, date.format, timezone = "UTC"){
