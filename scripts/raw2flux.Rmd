@@ -2,7 +2,11 @@
 title: "raw2flux"
 author: "Camille Minaudo"
 date: "2024-02-08"
-output: html_document
+output: 
+  html_document:
+      theme: bootstrap
+      toc: true
+      toc_float: true
 # https://github.com/camilleminaudo/picarroprocessing
 ---
 
@@ -11,9 +15,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Setting Up: Loading Libraries and Defining Paths
+
 ## Load packages and source functions
 
-```{r loading packages and functions, echo=FALSE, message=FALSE, warning=FALSE}
+Before loading all the packages, we must have installed all the dependencies. You run [this script](000_install_dependencies.R) to make sure that you have all dependencies installed.
+
+```{r loading packages and functions, message=FALSE, warning=FALSE}
 rm(list = ls()) # clear workspace
 cat("/014") # clear console
 
@@ -38,6 +46,7 @@ for (f in files.sources){source(f)}
 ```
 
 ## Set paths to directories and specify plot option
+The idea here is to save the information about where the files we want to import are located and where we will save the results we obtain, so we can call them later during the script.
 The structure of the repository should not be changed. 
 Data in the data folder can however be changed as long as the data structure remains the same as in the example provided here.
 
@@ -54,6 +63,9 @@ results_path <- paste0(repo_root,"/results/processed")
 doPlot <- T
 ```
 
+# Import data
+
+We're going to import all the field sheets we have and the raw data provided by the our device.
 
 ## Read fieldsheets in fieldsheet path
 ```{r reading fieldsheets}
@@ -63,8 +75,6 @@ myfieldsheets_list <- list.files(fieldsheetpath, pattern = "-Fieldsheet-GHG.xlsx
 fieldsheet <- read_GHG_fieldsheets(myfieldsheets_list)
 
 ```
-
-
 
 ## Import and store RAW measurements to RData
 ```{r import data and store}
@@ -113,13 +123,12 @@ head(mydata)
 
 ```
 
-
-
-
-
-
+# Data Correction and Auxilary Information (dataloggers)
 
 ## Correct fieldsheet  times based on "incubation map"
+
+Often we find discrepancies between the time we note on the field sheet and the time recorded after incubating with the equipment. Therefore, we must correct this to avoid errors.
+
 ```{r correct fieldsheet}
 read_map_incubations <- function(path2folder){
   
@@ -193,10 +202,8 @@ ggplot(fieldsheet)+
 
 ```
 
-
-
-
 ## Join loggers' data with fieldsheet and Picarro's data to make an auxfile
+We will need this information for performing calculations later on.
 Just for the sake of an example, this is done here only for one subsite among all the ones found in the data folder.
 This entire step will be reproduced later to go through all subsites.
 ```{r join with loggers data and create auxfile}
@@ -346,11 +353,10 @@ print(auxfile)
 
 ```
 
-
-
+# Selecting One Example
 
 ## Process data and compute fluxes for a randomly chosen incubation among the ones in the current auxfile (see previous step)
-This step here is only to illustrate how the script is running.
+This step here is only to illustrate how the script is running. We select an example and delve deeper into detail.
 
 ```{r select randomly one incubation}
 # draw an incubation randomly among the ones available
@@ -369,7 +375,7 @@ plt_CO2 <- ggplot(my_incub, aes(POSIX.time, CO2dry_ppm))+geom_line()+
 plt_CH4 <- ggplot(my_incub, aes(POSIX.time, CH4dry_ppb))+geom_line()+
   theme_article()+
   xlab("time UTC")+
-  ylab("CH4dry [ppm]")
+  ylab("CH4dry [ppb]")
 plt_H2O <- ggplot(my_incub, aes(POSIX.time, H2O_ppm))+geom_line()+
   theme_article()+
   xlab("time UTC")+
@@ -470,9 +476,12 @@ print(data.frame(CH4_flux_total = CH4_flux_total,
 
 
 ```
+
+# Running Analysis Across All Samples
+
 ## Re-doing the two last steps but for all incubations and across all subsites
 In addition, flux estimates are saved
-```{r process all incubations}
+```{r process all incubations, eval = F}
 
 # ---- Go through each incubation in fieldsheet and compute linear model for co2 and ch4 ----
 subsites <- unique(fieldsheet$subsite)
