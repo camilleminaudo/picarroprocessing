@@ -461,8 +461,8 @@ if(myauxfile$water_depth>0){
 }
 
 CH4_res_meth1$total_estimated <- CH4_flux_total
-  CH4_res_meth1$ebullition <- CH4_flux_ebull
-  CH4_res_meth1$diffusion <- CH4_flux_diff
+CH4_res_meth1$ebullition <- CH4_flux_ebull
+CH4_res_meth1$diffusion <- CH4_flux_diff
 
 print(data.frame(CH4_flux_total = CH4_flux_total,
                  CH4_flux_diff = CH4_flux_diff,
@@ -713,30 +713,32 @@ for (subsite in subsites){
 table_results <- auxfile %>%
   left_join(CO2_flux_res_auto %>% select(UniqueID, best.flux, model, quality.check)) %>%
   rename(CO2_flux = best.flux, CO2_model = model, CO2_quality.check = quality.check) %>%
-  left_join(CH4_res_meth1 %>% select(UniqueID, best.flux, model, quality.check)) %>%
-  rename(CH4_diffusive_flux = best.flux, CH4_model = model, CH4_quality.check = quality.check)
+  left_join(CH4_res_meth1 %>% select(UniqueID, best.flux, model, quality.check, diffusion, ebullition)) %>%
+  rename(CH4_flux = best.flux, CH4_model = model, CH4_quality.check = quality.check, CH4_diffusive_flux = diffusion, CH4_ebullitive_flux = ebullition)
 
 
-plt_CO2 <- ggplot(table_results, aes(lightCondition, CO2_flux, fill = lightCondition))+
+
+plt_CO2 <- ggplot(table_results_all, aes(strata, CO2_flux, fill = lightCondition))+
   geom_hline(yintercept = 0)+
   geom_boxplot(alpha=0.2)+geom_jitter(width = 0.2)+
-  theme_article()+facet_wrap(.~strata, scales = "free")+
+  theme_article()+
   ylab("CO2 flux mmol/m2/s")+
-  ggtitle(paste0(subsite,", CO2 flux"))+
-  scale_fill_viridis_d(begin = 0.2, end = 0.9)
+  ggtitle("CO2 flux")+
+  scale_fill_viridis_d(begin = 0.2, end = 0.9)+facet_grid(.~subsite)
 
 
-plt_CH4diff <- ggplot(table_results, aes(lightCondition, CH4_diffusive_flux, fill = lightCondition))+
+plt_CH4diff <- ggplot(table_results_all, aes(strata, CH4_flux, fill = lightCondition))+
   geom_hline(yintercept = 0)+
   geom_boxplot(alpha=0.2)+geom_jitter(width = 0.2)+
-  theme_article()+facet_wrap(.~strata, scales = "free")+
+  theme_article()+
   ylab("CH4 flux nmol/m2/s")+
-  ggtitle(paste0(subsite,", CH4 diffusive flux"))+
-  scale_fill_viridis_d(begin = 0.2, end = 0.9)
-
+  ggtitle("CH4 flux")+
+  scale_fill_viridis_d(begin = 0.2, end = 0.9)+facet_grid(.~subsite)
 
 
 ggarrange(plt_CO2, plt_CH4diff, ncol = 1)
+
+
 
 ```
 
