@@ -36,7 +36,8 @@ separate_ebullition_from_diffusion <- function(my_incub, UniqueID){
   
   mych4_sel <- mych4[mych4$dydt>lower_bound & mych4$dydt<upper_bound,]
   my_lm <- lm(data = mych4_sel, formula = ch4smooth~time)
-  my_c0 <- coefficients(my_lm)[1]
+  # my_c0 <- coefficients(my_lm)[1]
+  my_c0 <- min(mych4$ch4smooth[seq(1,100)])
   
   p_density <- ggplot(mych4, aes(dydt))+
     geom_rect(aes(xmin = lower_bound, ymin = -Inf, xmax = upper_bound, ymax = Inf), fill = "#FF7F50", alpha=0.1)+

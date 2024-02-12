@@ -171,7 +171,7 @@ fieldsheet$end_time_corrected <- strftime(fieldsheet$timestamp_stop, format="%H:
 # ---- Process incubations timeseries and compute fluxes ----
 
 
-# ---- Go through each incubation in fieldsheet and compute linear model for co2 and ch4 ----
+# ---- Go through each incubation in fieldsheet and compute linear model for co2 and ch4
 subsites <- unique(fieldsheet$subsite)
 isF_incub <- T
 isFsubsite <- T
