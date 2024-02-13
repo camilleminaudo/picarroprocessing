@@ -22,6 +22,8 @@ username <- "Camille"
 
 nb_draw <- 10
 
+load_data <- F
+
 ############################
 
 # ---- packages ----
@@ -66,46 +68,49 @@ fieldsheet <- read_GHG_fieldsheets(myfieldsheets_list)
 
 
 # ---- Import and store measurements to RData ----
-data_folders <- list.dirs(rawdatapath, full.names = T, recursive = T)[-1]
-r <- grep(pattern = "RData",x=data_folders)
-if(length(r)>0){data_folders <- data_folders[-r]}
-
-
-message("Here is the list of data folders in here:")
-print(data_folders)
-
-
-for (data_folder in data_folders){
-  setwd(data_folder)
-  subsite = basename(data_folder)
-  message(paste0("processing folder ",basename(data_folder)))
-  import2RData(path = data_folder, instrument = "G2508",
-               date.format = "ymd", timezone = 'UTC')
+if (load_data){
+  data_folders <- list.dirs(rawdatapath, full.names = T, recursive = T)[-1]
+  r <- grep(pattern = "RData",x=data_folders)
+  if(length(r)>0){data_folders <- data_folders[-r]}
   
-  # load all these R.Data into a single dataframe
-  file_list <- list.files(path = paste(data_folder,"/RData",sep=""), full.names = T)
-  isF <- T
-  for(i in seq_along(file_list)){
-    load(file_list[i])
-    if(isF){
-      isF <- F
-      mydata_imp <- data.raw
-    } else {
-      mydata_imp <- rbind(mydata_imp, data.raw)
+  
+  message("Here is the list of data folders in here:")
+  print(data_folders)
+  
+  
+  for (data_folder in data_folders){
+    setwd(data_folder)
+    subsite = basename(data_folder)
+    message(paste0("processing folder ",basename(data_folder)))
+    import2RData(path = data_folder, instrument = "G2508",
+                 date.format = "ymd", timezone = 'UTC')
+    
+    # load all these R.Data into a single dataframe
+    file_list <- list.files(path = paste(data_folder,"/RData",sep=""), full.names = T)
+    isF <- T
+    for(i in seq_along(file_list)){
+      load(file_list[i])
+      if(isF){
+        isF <- F
+        mydata_imp <- data.raw
+      } else {
+        mydata_imp <- rbind(mydata_imp, data.raw)
+      }
+      rm(data.raw)
     }
-    rm(data.raw)
+    
+    # get read of possible duplicated data
+    is_duplicate <- duplicated(mydata_imp$POSIX.time)
+    mydata <- mydata_imp[!is_duplicate,]
+    
+    # creating a folder where to put this data
+    dir.create(file.path(results_path, subsite))
+    setwd(file.path(results_path, subsite))
+    
+    # save this dataframe as a new RData file
+    save(mydata, file = paste0("data_",subsite,".RData"))
   }
   
-  # get read of possible duplicated data
-  is_duplicate <- duplicated(mydata_imp$POSIX.time)
-  mydata <- mydata_imp[!is_duplicate,]
-  
-  # creating a folder where to put this data
-  dir.create(file.path(results_path, subsite))
-  setwd(file.path(results_path, subsite))
-  
-  # save this dataframe as a new RData file
-  save(mydata, file = paste0("data_",subsite,".RData"))
 }
 
 
@@ -557,41 +562,37 @@ append_if_exists <- function(filename, data){
     write.csv(x = data, file = filename, 
               row.names = F)
   }
+  return(data)
 }
 
 
 filename <- paste0("BLIND_vs_EXPERT_co2_ch4_fluxes_",Sys.Date(),".csv")
-append_if_exists(filename, data = table_results)
+table_results <- append_if_exists(filename, data = table_results)
 
 
 filename <- paste0("BLIND_vs_EXPERT_ch4_ebullition_",Sys.Date(),".csv")
-append_if_exists(filename, data = table_results_ebull)
+table_results_ebull <- append_if_exists(filename, data = table_results_ebull)
 
 
 
 #----- some plots -----
 
 
-p_auto_vs_manual_co2 <- ggplot(data = rbind(CO2_flux_res_auto, CO2_flux_res_manID))+
+
+p_auto_vs_manual <- ggplot(data = table_results)+
   geom_abline(slope = 0,intercept = 0, color = 'lightgrey')+
-  geom_segment(data = data.frame(UniqueID = CO2_flux_res_auto$UniqueID,
-                                 meth1 = CO2_flux_res_auto$best.flux,
-                                 meth2 = CO2_flux_res_manID$best.flux), aes(x=UniqueID, xend=UniqueID, y = meth1, yend = meth2), linewidth=1, alpha = 0.5)+
+  # geom_segment(data = data.frame(UniqueID = CO2_flux_res_auto$UniqueID,
+  #                                meth1 = CO2_flux_res_auto$best.flux,
+  #                                meth2 = CO2_flux_res_manID$best.flux), aes(x=UniqueID, xend=UniqueID, y = meth1, yend = meth2), linewidth=1, alpha = 0.5)+
   geom_point(aes(UniqueID, best.flux, colour = flux_method), size=4, alpha = 0.5)+
-  ylab("CO2 flux [mmol/m2/s]")+
-  theme_article()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+scale_colour_viridis_d(begin = 0.1, end = 0.9, option = "F")
+  ylab("flux [(mmolCO2 or nmolCH4)/m2/s]")+
+  theme_article()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_colour_viridis_d(begin = 0.1, end = 0.9, option = "F")+facet_wrap(variable~., scales = 'free')
 
-p_auto_vs_manual_ch4 <- ggplot(data = rbind(CH4_flux_res_auto, CH4_flux_res_manID))+
-  geom_abline(slope = 0,intercept = 0, color = 'lightgrey')+
-  geom_segment(data = data.frame(UniqueID = CH4_flux_res_auto$UniqueID,
-                                 meth1 = CH4_flux_res_auto$best.flux,
-                                 meth2 = CH4_flux_res_manID$best.flux), aes(x=UniqueID, xend=UniqueID, y = meth1, yend = meth2), linewidth=1, alpha = 0.5)+
-  geom_point(aes(UniqueID, best.flux, colour = flux_method), size=4, alpha = 0.5)+
-  ylab("CH4 flux [nmol/m2/s]")+
-  theme_article()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+scale_colour_viridis_d(begin = 0.1, end = 0.9, option = "F")
+p_auto_vs_manual
 
 
-p_auto_vs_manual_ch4_ebullition <- ggplot(data = rbind(CH4_res_meth1, CH4_res_meth2))+
+p_auto_vs_manual_ch4_ebullition <- ggplot(data = table_results_ebull)+
   geom_abline(slope = 0,intercept = 0, color = 'lightgrey')+
   geom_segment(data = data.frame(UniqueID = CH4_res_meth1$UniqueID,
                                  meth1 = CH4_res_meth1$ebullition,
@@ -600,34 +601,7 @@ p_auto_vs_manual_ch4_ebullition <- ggplot(data = rbind(CH4_res_meth1, CH4_res_me
   ylab("ebullition component [nmol/m2/s]")+
   theme_article()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+scale_colour_viridis_d(begin = 0.1, end = 0.9, option = "F")
 
-ggarrange(p_auto_vs_manual_co2, p_auto_vs_manual_ch4, nrow = 1)
-
-
 p_auto_vs_manual_ch4_ebullition
-
-
-
-
-
-plt_CO2 <- ggplot(table_results, aes(lightCondition, CO2_flux, fill = lightCondition))+
-  geom_hline(yintercept = 0)+
-  geom_boxplot(alpha=0.2)+geom_jitter(width = 0.2)+
-  theme_article()+facet_wrap(.~strata, scales = "free")+
-  ylab("CO2 flux mmol/m2/s")+
-  ggtitle(paste0(subsite,", CO2 flux"))+
-  scale_fill_viridis_d(begin = 0.2, end = 0.9)
-
-
-plt_CH4diff <- ggplot(table_results, aes(lightCondition, CH4_diffusive_flux, fill = lightCondition))+
-  geom_hline(yintercept = 0)+
-  geom_boxplot(alpha=0.2)+geom_jitter(width = 0.2)+
-  theme_article()+facet_wrap(.~strata, scales = "free")+
-  ylab("CH4 flux nmol/m2/s")+
-  ggtitle(paste0(subsite,", CH4 diffusive flux"))+
-  scale_fill_viridis_d(begin = 0.2, end = 0.9)
-
-
-# ggarrange(plt_CO2, plt_CH4diff, ncol = 1)
 
 
 
